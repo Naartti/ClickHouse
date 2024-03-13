@@ -184,7 +184,7 @@ def test_upload_s3_fail_upload_part_when_multi_part_upload(
         LIMIT 100000000
         SETTINGS
             s3_max_single_part_upload_size=100,
-            s3_min_upload_part_size=100x
+            s3_min_upload_part_size=100
         """,
         query_id=insert_query_id,
     )

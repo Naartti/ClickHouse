@@ -695,7 +695,7 @@ template <typename RequestResult>
 RequestResult Client::enrichErrorMessage(RequestResult && outcome) const
 {
     if (outcome.IsSuccess() || !isClientForDisk())
-        return std::move(outcome);
+        return std::forward<RequestResult>(outcome);
 
     String enriched_message = fmt::format(
         "{} {}",
