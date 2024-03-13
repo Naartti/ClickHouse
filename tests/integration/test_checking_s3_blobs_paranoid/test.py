@@ -635,18 +635,15 @@ def test_no_key_found_disk(cluster, broken_s3):
     ).strip()
     assert uuid
 
-    node.query(
-        "INSERT INTO no_key_found_disk VALUES (1)"
-    )
+    node.query("INSERT INTO no_key_found_disk VALUES (1)")
 
-    data = node.query(
-        "SELECT * FROM no_key_found_disk"
-    ).strip()
+    data = node.query("SELECT * FROM no_key_found_disk").strip()
 
     assert data == "1"
 
-    remote_pathes = node.query(
-        f"""
+    remote_pathes = (
+        node.query(
+            f"""
         SELECT remote_path
         FROM system.remote_data_paths
         WHERE
@@ -654,7 +651,10 @@ def test_no_key_found_disk(cluster, broken_s3):
             AND local_path LIKE '%.bin%'
         ORDER BY ALL
         """
-    ).strip().split()
+        )
+        .strip()
+        .split()
+    )
 
     assert len(remote_pathes) > 0
 
@@ -669,10 +669,9 @@ def test_no_key_found_disk(cluster, broken_s3):
             assert size == 0
         assert "code: NoSuchKey" in str(exc_info.value)
 
-    error = node.query_and_get_error(
-        "SELECT * FROM no_key_found_disk"
-    ).strip()
+    error = node.query_and_get_error("SELECT * FROM no_key_found_disk").strip()
 
-    assert "DB::Exception: The specified key does not exist. This error happened for S3 disk." in error
-
-
+    assert (
+        "DB::Exception: The specified key does not exist. This error happened for S3 disk."
+        in error
+    )
