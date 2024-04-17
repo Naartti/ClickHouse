@@ -17,7 +17,13 @@ from github.GithubObject import NotSet
 from github.IssueComment import IssueComment
 from github.Repository import Repository
 
-from ci_config import CHECK_DESCRIPTIONS, REQUIRED_CHECKS, CheckDescription, StatusNames
+from ci_config import (
+    CHECK_DESCRIPTIONS,
+    JOBS_REQUIRED_FOR_SYNC,
+    REQUIRED_CHECKS,
+    CheckDescription,
+    StatusNames,
+)
 from env_helper import GITHUB_REPOSITORY, GITHUB_RUN_URL, TEMP_PATH
 from lambda_shared_package.lambda_shared.pr import Labels
 from pr_info import PRInfo
@@ -495,3 +501,49 @@ def trigger_mergeable_check(
 
     if mergeable_status is None or mergeable_status.description != description:
         set_mergeable_check(commit, description, state, hide_url)
+
+
+def trigger_a_sync_check(sync_commit: Commit, upstream_commit: Commit) -> None:
+    """calculate and update StatusNames.SYNC of the upstream commit"""
+    # Check the local JOBS_REQUIRED_FOR_SYNC and calculate the cumulative upstream
+    sync_statuses = get_commit_filtered_statuses(sync_commit)
+    required_sync_checks = [
+        status for status in sync_statuses if status.context in JOBS_REQUIRED_FOR_SYNC
+    ]
+
+    success = []
+    fail = []
+
+    # We don't change the StatusNames.SYNC of the sync_commit, only check it
+    for status in required_sync_checks:
+        if status.state == SUCCESS:
+            success.append(status.context)
+        else:
+            fail.append(status.context)
+
+    state: StatusType = SUCCESS
+
+    if success:
+        description = ", ".join(success)
+    else:
+        description = "awaiting job statuses"
+
+    if fail:
+        description = "failed: " + ", ".join(fail)
+        state = FAILURE
+    description = format_description(description)
+
+    upstream_statuses = get_commit_filtered_statuses(upstream_commit)
+    upstream_sync_status = None
+    report_url = ""
+    for status in upstream_statuses:
+        if status.context == StatusNames.SYNC:
+            upstream_sync_status = status
+            report_url = status.target_url
+            break
+
+    if upstream_sync_status is None or upstream_sync_status.description != description:
+        post_commit_status(
+            upstream_commit, state, report_url, description, StatusNames.SYNC
+        )
+        trigger_mergeable_check(upstream_commit, upstream_statuses, True)
