@@ -190,6 +190,7 @@ class StatusNames(metaclass=WithIter):
 
 JOBS_REQUIRED_FOR_SYNC = [
     JobNames.BUILD_CHECK,
+    JobNames.STYLE_CHECK,
     StatusNames.SYNC,
 ]
 
