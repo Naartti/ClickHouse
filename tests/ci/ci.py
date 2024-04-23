@@ -17,7 +17,15 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 import docker_images_helper
 import upload_result_helper
 from build_check import get_release_or_pr
-from ci_config import CI_CONFIG, Build, CILabels, CIStages, JobNames
+from ci_config import (
+    CI_CONFIG,
+    JOBS_REQUIRED_FOR_SYNC,
+    Build,
+    CILabels,
+    CIStages,
+    JobNames,
+    StatusNames,
+)
 from ci_utils import GHActions, is_hex, normalize_string
 from clickhouse_helper import (
     CiLogsCredentials,
@@ -34,13 +42,16 @@ from commit_status_helper import (
     get_commit,
     post_commit_status,
     set_status_comment,
+    trigger_a_sync_check,
     update_mergeable_check,
 )
 from digest_helper import DockerDigester, JobDigester
 from env_helper import (
     CI,
     GITHUB_JOB_API_URL,
+    GITHUB_REPOSITORY,
     GITHUB_RUN_URL,
+    GITHUB_UPSTREAM_REPOSITORY,
     REPO_COPY,
     REPORT_PATH,
     S3_BUILDS_BUCKET,
@@ -53,6 +64,7 @@ from github_helper import GitHub
 from pr_info import PRInfo
 from report import ERROR, SUCCESS, BuildResult, JobReport
 from s3_helper import S3Helper
+from synchronizer_utils import SYNC_BRANCH_PREFIX
 from version_helper import get_version_from_repo
 
 # pylint: disable=too-many-lines
@@ -2129,6 +2141,35 @@ def main() -> int:
                         commit,
                         pr_info,
                         job_report.check_name or _get_ext_check_name(args.job_name),
+                    )
+
+                # Process upstream StatusNames.SYNC
+                if (
+                    pr_info.head_ref.startswith(f"{SYNC_BRANCH_PREFIX}/")
+                    and args.job_name in JOBS_REQUIRED_FOR_SYNC
+                    and GITHUB_REPOSITORY != GITHUB_UPSTREAM_REPOSITORY
+                ):
+                    pr_number = int(pr_info.head_ref.split("/")[-1])
+                    gh = GitHub(get_best_robot_token(), per_page=100)
+                    upstream_repo = gh.get_repo(GITHUB_UPSTREAM_REPOSITORY)
+                    head_sha = upstream_repo.get_pull(pr_number).head.sha
+                    upstream_commit = upstream_repo.get_commit(head_sha)
+                    sync_commit = get_commit(gh, pr_info.sha)
+
+                    trigger_a_sync_check(sync_commit, upstream_commit)
+
+                    prepared_events = prepare_tests_results_for_clickhouse(
+                        pr_info,
+                        [],
+                        job_report.status,
+                        0,
+                        job_report.start_time,
+                        f"https://github.com/ClickHouse/ClickHouse/pull/{pr_number}",
+                        StatusNames.SYNC,
+                    )
+                    prepared_events[0]["test_context_raw"] = args.job_name
+                    ch_helper.insert_events_into(
+                        db="default", table="checks", events=prepared_events
                     )
 
             print(f"Job report url: [{check_url}]")
