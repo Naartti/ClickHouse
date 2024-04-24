@@ -434,11 +434,11 @@ def set_mergeable_check(
     description: str = "",
     state: StatusType = SUCCESS,
     hide_url: bool = False,
-) -> None:
+) -> CommitStatus:
     report_url = GITHUB_RUN_URL
     if hide_url:
         report_url = ""
-    post_commit_status(
+    return post_commit_status(
         commit,
         state,
         report_url,
@@ -447,7 +447,9 @@ def set_mergeable_check(
     )
 
 
-def update_mergeable_check(commit: Commit, pr_info: PRInfo, check_name: str) -> None:
+def update_mergeable_check(
+    commit: Commit, pr_info: PRInfo, check_name: str
+) -> Optional[CommitStatus]:
     "check if the check_name in REQUIRED_CHECKS and then trigger update"
     not_run = (
         pr_info.labels.intersection({Labels.SKIP_MERGEABLE_CHECK, Labels.RELEASE})
@@ -459,17 +461,17 @@ def update_mergeable_check(commit: Commit, pr_info: PRInfo, check_name: str) -> 
     # FIXME: For now, always set mergeable check in the Merge Queue. It's required to pass MQ
     if not_run and not pr_info.is_merge_queue:
         # Let's avoid unnecessary work
-        return
+        return None
 
     logging.info("Update Mergeable Check by %s", check_name)
 
     statuses = get_commit_filtered_statuses(commit)
-    trigger_mergeable_check(commit, statuses)
+    return trigger_mergeable_check(commit, statuses)
 
 
 def trigger_mergeable_check(
     commit: Commit, statuses: CommitStatuses, hide_url: bool = False
-) -> None:
+) -> CommitStatus:
     """calculate and update StatusNames.MERGEABLE"""
     required_checks = [
         status for status in statuses if status.context in REQUIRED_CHECKS
@@ -502,7 +504,8 @@ def trigger_mergeable_check(
     description = format_description(description)
 
     if mergeable_status is None or mergeable_status.description != description:
-        set_mergeable_check(commit, description, state, hide_url)
+        return set_mergeable_check(commit, description, state, hide_url)
+    return mergeable_status
 
 
 def trigger_a_sync_check(sync_commit: Commit, upstream_commit: Commit) -> None:
