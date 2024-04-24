@@ -91,13 +91,13 @@ def post_commit_status(
     check_name: Optional[str] = None,
     pr_info: Optional[PRInfo] = None,
     dump_to_file: bool = False,
-) -> None:
+) -> CommitStatus:
     """The parameters are given in the same order as for commit.create_status,
     if an optional parameter `pr_info` is given, the `set_status_comment` functions
     is invoked to add or update the comment with statuses overview"""
     for i in range(RETRY):
         try:
-            commit.create_status(
+            commit_status = commit.create_status(
                 state=state,
                 target_url=report_url if report_url is not None else NotSet,
                 description=description if description is not None else NotSet,
@@ -133,6 +133,8 @@ def post_commit_status(
             sha=pr_info.sha,
             pr_num=pr_info.number,
         ).dump_status()
+
+    return commit_status
 
 
 STATUS_ICON_MAP = defaultdict(
@@ -535,15 +537,23 @@ def trigger_a_sync_check(sync_commit: Commit, upstream_commit: Commit) -> None:
 
     upstream_statuses = get_commit_filtered_statuses(upstream_commit)
     upstream_sync_status = None
+    ind = -1
     report_url = ""
-    for status in upstream_statuses:
+    for i, status in enumerate(upstream_statuses):
         if status.context == StatusNames.SYNC:
+            ind = i
             upstream_sync_status = status
             report_url = status.target_url
             break
 
     if upstream_sync_status is None or upstream_sync_status.description != description:
-        post_commit_status(
+        upstream_sync_status = post_commit_status(
             upstream_commit, state, report_url, description, StatusNames.SYNC
         )
+        # We need to renew the upstream statuses.
+        # Otherwise it have an old StatusNames.SYNC
+        if ind != -1:
+            upstream_statuses[ind] = upstream_sync_status
+        else:
+            upstream_statuses.append(upstream_sync_status)
         trigger_mergeable_check(upstream_commit, upstream_statuses, True)
