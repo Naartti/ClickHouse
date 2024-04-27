@@ -465,8 +465,10 @@ void S3ObjectStorage::copyObjectToAnotherObjectStorage( // NOLINT
         auto current_client = dest_s3->client.get();
         auto settings_ptr = s3_settings.get();
         auto size = S3::getObjectSize(*current_client, uri.bucket, object_from.remote_path, {}, settings_ptr->request_settings);
-        auto scheduler = threadPoolCallbackRunner<void>(getThreadPoolWriter(), "S3ObjStor_copy");
-        try {
+        auto scheduler = threadPoolCallbackRunnerUnsafe<void>(getThreadPoolWriter(), "S3ObjStor_copy");
+
+        try
+        {
             copyS3File(
                 current_client,
                 uri.bucket,
@@ -479,8 +481,7 @@ void S3ObjectStorage::copyObjectToAnotherObjectStorage( // NOLINT
                 patchSettings(read_settings),
                 BlobStorageLogWriter::create(disk_name),
                 object_to_attributes,
-                scheduler,
-                /* for_disk_s3= */ true);
+                scheduler);
             return;
         }
         catch (S3Exception & exc)
@@ -507,7 +508,8 @@ void S3ObjectStorage::copyObject( // NOLINT
     auto current_client = client.get();
     auto settings_ptr = s3_settings.get();
     auto size = S3::getObjectSize(*current_client, uri.bucket, object_from.remote_path, {}, settings_ptr->request_settings);
-    auto scheduler = threadPoolCallbackRunner<void>(getThreadPoolWriter(), "S3ObjStor_copy");
+    auto scheduler = threadPoolCallbackRunnerUnsafe<void>(getThreadPoolWriter(), "S3ObjStor_copy");
+
     copyS3File(current_client,
         uri.bucket,
         object_from.remote_path,
@@ -519,8 +521,7 @@ void S3ObjectStorage::copyObject( // NOLINT
         patchSettings(read_settings),
         BlobStorageLogWriter::create(disk_name),
         object_to_attributes,
-        scheduler,
-        /* for_disk_s3= */ true);
+        scheduler);
 }
 
 void S3ObjectStorage::setNewSettings(std::unique_ptr<S3ObjectStorageSettings> && s3_settings_)
