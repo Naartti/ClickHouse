@@ -225,7 +225,8 @@ void ReadBufferFromAzureBlobStorage::initialize()
         try
         {
             ProfileEvents::increment(ProfileEvents::AzureGetObject);
-            ProfileEvents::increment(ProfileEvents::DiskAzureGetObject);
+            if (blob_container_client->GetClickhouseOptions().IsClientForDisk)
+                ProfileEvents::increment(ProfileEvents::DiskAzureGetObject);
 
             auto download_response = blob_client->Download(download_options);
             data_stream = std::move(download_response.Value.BodyStream);
@@ -278,7 +279,8 @@ size_t ReadBufferFromAzureBlobStorage::readBigAt(char * to, size_t n, size_t ran
         try
         {
             ProfileEvents::increment(ProfileEvents::AzureGetObject);
-            ProfileEvents::increment(ProfileEvents::DiskAzureGetObject);
+            if (blob_container_client->GetClickhouseOptions().IsClientForDisk)
+                ProfileEvents::increment(ProfileEvents::DiskAzureGetObject);
 
             Azure::Storage::Blobs::DownloadBlobOptions download_options;
             download_options.Range = {static_cast<int64_t>(range_begin), n};

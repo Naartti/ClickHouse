@@ -1,4 +1,6 @@
 #include <Disks/ObjectStorages/AzureBlobStorage/AzureBlobStorageAuth.h>
+#include <azure/storage/blobs/blob_options.hpp>
+#include "Client/ClientBase.h"
 
 #if USE_AZURE_BLOB_STORAGE
 
@@ -205,6 +207,8 @@ Azure::Storage::Blobs::BlobClientOptions getAzureBlobClientOptions(const Poco::U
     Azure::Storage::Blobs::BlobClientOptions client_options;
     client_options.Retry = retry_options;
     client_options.Transport.Transport = std::make_shared<Azure::Core::Http::CurlTransport>(curl_options);
+
+    client_options.ClickhouseOptions = Azure::Storage::Blobs::ClickhouseClientOptions{.IsClientForDisk=true};
 
     return client_options;
 }
