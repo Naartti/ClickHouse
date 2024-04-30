@@ -269,7 +269,6 @@ bool JoinKeyRow::equals(const FullMergeJoinCursor & cursor) const
     if (row.empty())
         return false;
 
-    assert(this->row.size() == cursor->sort_columns_size + 1);
     for (size_t i = 0; i < cursor->sort_columns_size; ++i)
     {
         // int cmp = this->row[i]->compareAt(0, cursor->getRow(), *(cursor->sort_columns[i]), cursor->desc[i].nulls_direction);
@@ -282,6 +281,7 @@ bool JoinKeyRow::equals(const FullMergeJoinCursor & cursor) const
 
 bool JoinKeyRow::asofMatch(const FullMergeJoinCursor & cursor, ASOFJoinInequality asof_inequality) const
 {
+    chassert(this->row.size() == cursor->sort_columns_size + 1);
     if (!equals(cursor))
         return false;
     int cmp = cursor.getAsofColumn()->compareAt(cursor->getRow(), 0, *row.back(), 1);
