@@ -1,12 +1,11 @@
 #include <Disks/ObjectStorages/AzureBlobStorage/AzureBlobStorageAuth.h>
-#include <azure/storage/blobs/blob_options.hpp>
-#include "Client/ClientBase.h"
 
 #if USE_AZURE_BLOB_STORAGE
 
 #include <Common/Exception.h>
 #include <Common/re2.h>
 #include <azure/identity/managed_identity_credential.hpp>
+#include <azure/storage/blobs/blob_options.hpp>
 #include <azure/core/http/curl_transport.hpp>
 #include <Poco/Util/AbstractConfiguration.h>
 #include <Interpreters/Context.h>

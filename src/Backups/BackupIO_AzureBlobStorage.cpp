@@ -1,5 +1,4 @@
 #include <Backups/BackupIO_AzureBlobStorage.h>
-#include <azure/storage/blobs/blob_options.hpp>
 
 #if USE_AZURE_BLOB_STORAGE
 #include <Common/quoteString.h>
@@ -15,6 +14,7 @@
 #include <Disks/DiskType.h>
 
 #include <Poco/Util/AbstractConfiguration.h>
+#include <azure/storage/blobs/blob_options.hpp>
 
 #include <filesystem>
 
