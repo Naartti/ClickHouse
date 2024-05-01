@@ -43,6 +43,13 @@ FullMergeJoinCursorPtr createCursor(const Block & block, const Names & columns, 
     return std::make_unique<FullMergeJoinCursor>(materializeBlock(block), desc, strictness == JoinStrictness::Asof);
 }
 
+bool isNullAt(const IColumn & column, size_t row)
+{
+    if (const auto * nullable = checkAndGetColumn<ColumnNullable>(column))
+        return nullable->isNullAt(row);
+    return false;
+}
+
 template <bool has_left_nulls, bool has_right_nulls>
 int nullableCompareAt(const IColumn & left_column, const IColumn & right_column, size_t lhs_pos, size_t rhs_pos, int null_direction_hint)
 {
@@ -54,7 +61,7 @@ int nullableCompareAt(const IColumn & left_column, const IColumn & right_column,
         if (left_nullable && right_nullable)
         {
             int res = left_nullable->compareAt(lhs_pos, rhs_pos, right_column, null_direction_hint);
-            if (res)
+            if (res != 0)
                 return res;
 
             /// NULL != NULL case
@@ -110,7 +117,7 @@ int ALWAYS_INLINE compareCursors(const SortCursorImpl & lhs, const SortCursorImp
 
 int compareAsofCursors(const FullMergeJoinCursor & lhs, const FullMergeJoinCursor & rhs, int null_direction_hint)
 {
-    return nullableCompareAt<false, false>(*lhs.getAsofColumn(), *rhs.getAsofColumn(), lhs->getRow(), rhs->getRow(), null_direction_hint);
+    return nullableCompareAt<true, true>(*lhs.getAsofColumn(), *rhs.getAsofColumn(), lhs->getRow(), rhs->getRow(), null_direction_hint);
 }
 
 bool ALWAYS_INLINE totallyLess(SortCursorImpl & lhs, SortCursorImpl & rhs, int null_direction_hint)
@@ -284,7 +291,13 @@ bool JoinKeyRow::asofMatch(const FullMergeJoinCursor & cursor, ASOFJoinInequalit
     chassert(this->row.size() == cursor->sort_columns_size + 1);
     if (!equals(cursor))
         return false;
-    int cmp = cursor.getAsofColumn()->compareAt(cursor->getRow(), 0, *row.back(), 1);
+
+    const auto & asof_row = row.back();
+    if (isNullAt(*asof_row, 0) || isNullAt(*cursor.getAsofColumn(), cursor->getRow()))
+        return false;
+
+    int cmp = cursor.getAsofColumn()->compareAt(cursor->getRow(), 0, *asof_row, 1);
+
     return (asof_inequality == ASOFJoinInequality::Less && cmp < 0)
         || (asof_inequality == ASOFJoinInequality::LessOrEquals && cmp <= 0)
         || (asof_inequality == ASOFJoinInequality::Greater && cmp > 0)
@@ -994,6 +1007,13 @@ MergeJoinAlgorithm::Status MergeJoinAlgorithm::asofJoin()
         auto lpos = left_cursor->getRow();
         auto rpos = right_cursor->getRow();
         auto cmp = compareCursors(*left_cursor, *right_cursor, null_direction_hint);
+        if (cmp == 0)
+        {
+            if (isNullAt(*left_cursor.getAsofColumn(), lpos))
+                cmp = -1;
+            if (isNullAt(*right_cursor.getAsofColumn(), rpos))
+                cmp = 1;
+        }
 
         if (cmp == 0)
         {
@@ -1097,7 +1117,6 @@ MergeJoinAlgorithm::Status MergeJoinAlgorithm::asofJoin()
         }
         else
         {
-
             /// skip rows in right table until we find match for current row in left table
             nextDistinct(*right_cursor);
         }
